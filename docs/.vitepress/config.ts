@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'GoaPower Sync',
   description: 'Generic path-based sync protocol and reducers.',
+  base: '/goapower-sync/',
   cleanUrls: true,
   themeConfig: {
     nav: [

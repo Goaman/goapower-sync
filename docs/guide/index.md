@@ -1,8 +1,8 @@
 <script setup>
-import { inBrowser } from 'vitepress';
+import { inBrowser, withBase } from 'vitepress';
 
 if (inBrowser) {
-  window.location.replace('/guide/understand-snapshot/');
+  window.location.replace(withBase('/guide/understand-snapshot/'));
 }
 </script>
 
