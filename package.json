@@ -1,0 +1,19 @@
+{
+  "name": "goapower-sync",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Keep JavaScript object graphs in sync across processes.",
+  "exports": {
+    "./src/*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}
