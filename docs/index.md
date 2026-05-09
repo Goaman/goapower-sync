@@ -76,6 +76,27 @@ reactiveAppend(session.entries.e1, 'response', 'hello');
 transport.send(getPatchEvent(session));
 ```
 
+For long-lived state, subscribe to writes once and let the transport publish patches whenever the reactive graph changes.
+
+```ts
+transport.send(getSnapshotEvent(session));
+
+let queued = false;
+const unsubscribe = subscribeWrites(session, () => {
+  if (queued) return;
+  queued = true;
+  queueMicrotask(() => {
+    queued = false;
+    const event = getPatchEvent(session);
+    if (event[1].length > 0) transport.send(event);
+  });
+});
+
+session.entries.e1 = { type: 'agent_response', response: '' };
+session.currentEntryId = 'e1';
+reactiveAppend(session.entries.e1, 'response', 'hello');
+```
+
 Client side:
 
 ```ts

@@ -26,6 +26,7 @@ interface Tracker {
   appendPatches: Map<SyncObjectId, Map<SyncObjectKey, string>>;
   deletePatches: Map<SyncObjectId, Set<SyncObjectKey>>;
   changedObjectIds: SyncObjectId[];
+  writeListeners: Set<() => void>;
   nextObjectId: number;
 }
 
@@ -41,6 +42,7 @@ const createTracker = (): Tracker => ({
   appendPatches: new Map<SyncObjectId, Map<SyncObjectKey, string>>(),
   deletePatches: new Map<SyncObjectId, Set<SyncObjectKey>>(),
   changedObjectIds: [],
+  writeListeners: new Set(),
   nextObjectId: 1,
 });
 
@@ -71,6 +73,10 @@ const trackChangedObject = (tracker: Tracker, id: SyncObjectId) => {
   if (!tracker.changedObjectIds.includes(id)) tracker.changedObjectIds.push(id);
 };
 
+const notifyWrite = (tracker: Tracker) => {
+  for (const listener of tracker.writeListeners) listener();
+};
+
 const trackSet = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey, value: SyncEncodedValue) => {
   trackChangedObject(tracker, id);
   let setPatch = tracker.setPatches.get(id);
@@ -81,6 +87,7 @@ const trackSet = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey, value
   setPatch[String(prop)] = value;
   tracker.appendPatches.get(id)?.delete(prop);
   tracker.deletePatches.get(id)?.delete(prop);
+  notifyWrite(tracker);
 };
 
 const trackAppend = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey, value: string) => {
@@ -92,6 +99,7 @@ const trackAppend = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey, va
   }
   appendPatch.set(prop, (appendPatch.get(prop) ?? '') + value);
   tracker.deletePatches.get(id)?.delete(prop);
+  notifyWrite(tracker);
 };
 
 const trackDelete = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey) => {
@@ -105,6 +113,7 @@ const trackDelete = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey) =>
     tracker.deletePatches.set(id, deletePatch);
   }
   deletePatch.add(prop);
+  notifyWrite(tracker);
 };
 
 const getTrackerPatch = (tracker: Tracker): SyncPatch => {
@@ -238,6 +247,12 @@ export const createTrackedSyncState = <T extends object>(initialValue: T): Track
     },
     flushPatchEvent: () => ['sync_patch', tracked.flushPatch()],
     snapshotEvent: () => ['sync_snapshot', tracked.getSnapshot()],
+    subscribe: (listener) => {
+      tracker.writeListeners.add(listener);
+      return () => {
+        tracker.writeListeners.delete(listener);
+      };
+    },
   };
 
   trackedByProxy.set(value, tracked as TrackedSyncState<object>);
@@ -262,6 +277,9 @@ export const getPatch = (value: object, options: GetPatchOptions = {}): SyncPatc
 export const resetPatch = (value: object): void => trackedFor(value).resetPatch();
 
 export const getSnapshot = (value: object): SyncSnapshot => trackedFor(value).getSnapshot();
+
+export const subscribeWrites = (value: object, listener: () => void): (() => void) =>
+  trackedFor(value).subscribe(listener);
 
 export const reactiveAppend = <T extends object, K extends keyof T>(value: T, prop: K, appendValue: string): void => {
   const tracker = trackerByProxy.get(value);

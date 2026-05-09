@@ -8,6 +8,7 @@ import {
   reactive,
   reactiveAppend,
   resetPatch,
+  subscribeWrites,
 } from '../src/reactive.ts';
 import { createSyncClient } from '../src/client.ts';
 
@@ -211,5 +212,20 @@ describe('sync reactive proxy', () => {
     session.currentEntryId = 'e1';
 
     expect(getPatchEvent(session)).toEqual(['sync_patch', [['set_props', 1, { currentEntryId: 'e1' }]]]);
+  });
+
+  test('subscribes to reactive writes', () => {
+    const session = reactive({ currentEntryId: null as string | null, nested: { count: 0 } });
+    let writes = 0;
+    const unsubscribe = subscribeWrites(session, () => {
+      writes += 1;
+    });
+
+    session.currentEntryId = 'e1';
+    session.nested.count = 1;
+    unsubscribe();
+    session.currentEntryId = 'e2';
+
+    expect(writes).toBe(2);
   });
 });

@@ -115,3 +115,23 @@ type SyncEvent =
   | SyncSnapshotEvent
   | SyncPatchEvent;
 ```
+
+## `TrackedSyncState`
+
+`TrackedSyncState` is the lower-level handle returned by `createTrackedSyncState`. It owns the proxy value, snapshot and patch helpers, and write subscriptions.
+
+```ts
+interface TrackedSyncState<T extends object> {
+  value: T;
+  getPatch(): SyncPatch;
+  flushPatch(): SyncPatch;
+  resetPatch(): void;
+  getSnapshot(): SyncSnapshot;
+  batch<Result>(fn: (value: T) => Result): { result: Result; patch: SyncPatch };
+  flushPatchEvent(): SyncPatchEvent;
+  snapshotEvent(): SyncSnapshotEvent;
+  subscribe(listener: () => void): () => void;
+}
+```
+
+`subscribe(listener)` runs the listener when the tracked proxy graph is written to. It does not flush patches; call `flushPatch()`, `flushPatchEvent()`, or the higher-level `getPatchEvent(value)` in the listener when you are ready to publish changes.

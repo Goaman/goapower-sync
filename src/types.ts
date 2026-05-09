@@ -34,6 +34,7 @@ export interface TrackedSyncState<T extends object> {
   batch<Result>(fn: (value: T) => Result): { result: Result; patch: SyncPatch };
   flushPatchEvent(): SyncPatchEvent;
   snapshotEvent(): SyncSnapshotEvent;
+  subscribe(listener: () => void): () => void;
 }
 
 export interface GetPatchOptions {

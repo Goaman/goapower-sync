@@ -5,7 +5,7 @@ This example syncs a server-owned reactive object to a browser client over WebSo
 Server:
 
 ```ts
-import { getPatchEvent, getSnapshotEvent, reactive } from 'goapower-sync/src/reactive.ts';
+import { getPatchEvent, getSnapshotEvent, reactive, subscribeWrites } from 'goapower-sync/src/reactive.ts';
 import { encodeSyncTransportValue } from 'goapower-sync/src/transport.ts';
 import type { SyncEvent } from 'goapower-sync/src/types.ts';
 
@@ -19,6 +19,17 @@ const send = (ws: ServerWebSocket<unknown>, event: SyncEvent) => {
 const broadcast = (event: SyncEvent) => {
   for (const ws of clients) send(ws, event);
 };
+
+let queued = false;
+subscribeWrites(object, () => {
+  if (queued) return;
+  queued = true;
+  queueMicrotask(() => {
+    queued = false;
+    const event = getPatchEvent(object);
+    if (event[1].length > 0) broadcast(event);
+  });
+});
 
 Bun.serve({
   port: 3000,
@@ -39,7 +50,6 @@ Bun.serve({
 
 setInterval(() => {
   object.foo = `bar-${Date.now()}`;
-  broadcast(getPatchEvent(object));
 }, 1000);
 ```
 

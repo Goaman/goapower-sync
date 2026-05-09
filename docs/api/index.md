@@ -105,6 +105,43 @@ resetPatch(value);
 getPatch(value); // []
 ```
 
+## `subscribeWrites`
+
+Subscribes to writes on a reactive object graph. The listener runs after every tracked `set`, `delete`, or `reactiveAppend` write. It does not flush patches by itself.
+
+```ts
+const value = reactive({ nested: { text: 'hello' } });
+
+const unsubscribe = subscribeWrites(value, () => {
+  const event = getPatchEvent(value);
+  if (event[1].length > 0) transport.send(event);
+});
+
+value.nested.text = 'hello !';
+
+unsubscribe();
+```
+
+When many writes can happen in one synchronous operation, batch the send with a microtask so subscribers receive one compacted patch.
+
+```ts
+const value = reactive({ currentEntryId: null as string | null, entries: {} as Record<string, unknown> });
+let queued = false;
+
+const unsubscribe = subscribeWrites(value, () => {
+  if (queued) return;
+  queued = true;
+  queueMicrotask(() => {
+    queued = false;
+    const event = getPatchEvent(value);
+    if (event[1].length > 0) transport.send(event);
+  });
+});
+
+value.entries.e1 = { type: 'agent_response' };
+value.currentEntryId = 'e1';
+```
+
 ## `getSnapshotEvent`
 
 Returns a `sync_snapshot` event.
@@ -155,6 +192,8 @@ const patch = tracked.flushPatch();
 patch; // [['set_props', 1, { currentEntryId: 'entry-1' }]]
 tracked.flushPatch(); // []
 ```
+
+Tracked state also exposes `subscribe(listener)`, which is the lower-level form of `subscribeWrites(value, listener)`.
 
 ## `createSyncClient`
 
