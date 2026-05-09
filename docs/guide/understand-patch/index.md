@@ -25,6 +25,31 @@ Produces:
 
 Each patch entry starts with a change type.
 
+Patches can also introduce new object ids. When you assign a new nested object, `goapower-sync` first emits that object's properties, then emits the parent reference.
+
+```ts
+const session = reactive({
+  entries: {} as Record<string, { type: string }>,
+});
+
+getSnapshot(session);
+
+session.entries.e1 = { type: 'user_message' };
+
+getPatch(session);
+```
+
+Produces:
+
+```ts
+[
+  ['set_props', 3, { type: 'user_message' }],
+  ['set_props', 2, { e1: [3] }],
+]
+```
+
+Clients apply these changes in order. If object id `3` is missing, the client creates a shell for it from the first `set_props`, then `e1: [3]` can safely point at that object.
+
 ## `set_props`
 
 `set_props` assigns one or more properties on the same object.

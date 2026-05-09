@@ -22,6 +22,7 @@ interface Tracker {
   rawByProxy: WeakMap<object, object>;
   proxyByRaw: WeakMap<object, object>;
   trackedByProxy: WeakMap<object, TrackedSyncState<object>>;
+  objectPublication: ObjectPublicationState;
   setPatches: Map<SyncObjectId, SyncObjectSet>;
   appendPatches: Map<SyncObjectId, Map<SyncObjectKey, string>>;
   deletePatches: Map<SyncObjectId, Set<SyncObjectKey>>;
@@ -30,14 +31,25 @@ interface Tracker {
   nextObjectId: number;
 }
 
+interface ObjectPublicationState {
+  knownObjectIds: Set<SyncObjectId>;
+  pendingKnownObjectIds: Set<SyncObjectId>;
+}
+
 const trackedByProxy = new WeakMap<object, TrackedSyncState<object>>();
 const trackerByProxy = new WeakMap<object, Tracker>();
+
+const createObjectPublicationState = (): ObjectPublicationState => ({
+  knownObjectIds: new Set(),
+  pendingKnownObjectIds: new Set(),
+});
 
 const createTracker = (): Tracker => ({
   objectIds: new WeakMap<object, SyncObjectId>(),
   rawByProxy: new WeakMap<object, object>(),
   proxyByRaw: new WeakMap<object, object>(),
   trackedByProxy,
+  objectPublication: createObjectPublicationState(),
   setPatches: new Map<SyncObjectId, SyncObjectSet>(),
   appendPatches: new Map<SyncObjectId, Map<SyncObjectKey, string>>(),
   deletePatches: new Map<SyncObjectId, Set<SyncObjectKey>>(),
@@ -75,6 +87,38 @@ const trackChangedObject = (tracker: Tracker, id: SyncObjectId) => {
 
 const notifyWrite = (tracker: Tracker) => {
   for (const listener of tracker.writeListeners) listener();
+};
+
+const markObjectGraphPublished = (publication: ObjectPublicationState, id: SyncObjectId) => {
+  publication.knownObjectIds.add(id);
+};
+
+const commitPendingObjectPublications = (publication: ObjectPublicationState) => {
+  for (const objectId of publication.pendingKnownObjectIds) publication.knownObjectIds.add(objectId);
+  publication.pendingKnownObjectIds.clear();
+};
+
+const trackNewObjectGraph = (tracker: Tracker, value: object, seen = new Set<SyncObjectId>()) => {
+  const raw = rawObject(tracker, value);
+  const id = objectId(tracker, raw);
+  const publication = tracker.objectPublication;
+  if (publication.knownObjectIds.has(id) || seen.has(id)) return;
+  seen.add(id);
+  publication.pendingKnownObjectIds.add(id);
+
+  for (const key of Reflect.ownKeys(raw)) {
+    const descriptor = Object.getOwnPropertyDescriptor(raw, key);
+    if (!descriptor?.enumerable) continue;
+    const valueAtKey = (raw as any)[key as any];
+    const prop = propertyNameToObjectKey(key);
+    if (proxyable(valueAtKey)) {
+      makeProxy(tracker, valueAtKey);
+      trackNewObjectGraph(tracker, valueAtKey, seen);
+    }
+    trackSet(tracker, id, prop, encodeValue(tracker, valueAtKey));
+  }
+
+  if (Array.isArray(raw)) trackSet(tracker, id, 'length', raw.length);
 };
 
 const trackSet = (tracker: Tracker, id: SyncObjectId, prop: SyncObjectKey, value: SyncEncodedValue) => {
@@ -138,6 +182,7 @@ const getTrackerPatch = (tracker: Tracker): SyncPatch => {
 };
 
 const resetTrackerPatch = (tracker: Tracker) => {
+  commitPendingObjectPublications(tracker.objectPublication);
   tracker.setPatches.clear();
   tracker.appendPatches.clear();
   tracker.deletePatches.clear();
@@ -164,7 +209,10 @@ const makeProxy = <T extends object>(tracker: Tracker, target: T): T => {
       const rawValue = proxyable(value) ? rawObject(tracker, value) : value;
       const didSet = Reflect.set(currentTarget, property, rawValue, receiver);
       if (didSet && previous !== rawValue) {
-        if (proxyable(rawValue)) makeProxy(tracker, rawValue);
+        if (proxyable(rawValue)) {
+          makeProxy(tracker, rawValue);
+          trackNewObjectGraph(tracker, rawValue);
+        }
         trackSet(tracker, objectId(tracker, currentTarget), prop, encodeValue(tracker, rawValue));
         if (Array.isArray(currentTarget) && prop !== 'length' && previousLength !== currentTarget.length) {
           trackSet(tracker, objectId(tracker, currentTarget), 'length', currentTarget.length);
@@ -200,6 +248,7 @@ const snapshotObject = (
   if (seen.has(id)) return [id] as const;
 
   seen.add(id);
+  markObjectGraphPublished(tracker.objectPublication, id);
   const recordValue: SyncObjectProps | SyncArrayItems = Array.isArray(raw) ? [] : {};
   records.push([id, recordValue]);
 

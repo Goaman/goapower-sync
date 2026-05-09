@@ -99,7 +99,7 @@ type SyncSnapshotEvent = readonly [
 
 ## `SyncPatchEvent`
 
-Sends property-level changes for known object ids.
+Sends property-level changes. A `set_props` change may target a new object id when the patch introduces a nested object graph; clients create the missing shell before applying that object's properties.
 
 ```ts
 type SyncPatchEvent = readonly [

@@ -87,4 +87,29 @@ describe('sync client', () => {
     expect(value.childB).toBeUndefined();
     expect(child.count).toBe(2);
   });
+
+  test('sync client creates objects introduced by patches', () => {
+    const client = createSyncClient();
+
+    client.apply([
+      'sync_snapshot',
+      [
+        [1],
+        [
+          [1, { entries: [2] }],
+          [2, {}],
+        ],
+      ],
+    ]);
+
+    client.apply([
+      'sync_patch',
+      [
+        ['set_props', 3, { text: 'hello' }],
+        ['set_props', 2, { e1: [3] }],
+      ],
+    ]);
+
+    expect((client.value as any).entries.e1.text).toBe('hello');
+  });
 });

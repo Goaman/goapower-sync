@@ -85,7 +85,10 @@ describe('sync reactive proxy', () => {
 
     a.child = { foo: 'bar' };
 
-    expect(getPatch(a)).toEqual([['set_props', 1, { child: [2] }]]);
+    expect(getPatch(a)).toEqual([
+      ['set_props', 2, { foo: 'bar' }],
+      ['set_props', 1, { child: [2] }],
+    ]);
     expect(getSnapshot(a)[1]).toEqual([
       [1, { child: [2] }],
       [2, { foo: 'bar' }],
@@ -121,6 +124,7 @@ describe('sync reactive proxy', () => {
 
     expect(result).toBe('e1');
     expect(patch).toEqual([
+      ['set_props', 3, { type: 'user_message' }],
       ['set_props', 2, { e1: [3] }],
       ['set_props', 1, { currentEntryId: 'e1' }],
     ]);
