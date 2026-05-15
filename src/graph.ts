@@ -1,4 +1,11 @@
-import type { SyncEncodedValue, SyncEvent, SyncObjectId, SyncObjectKey, SyncObjectRecord, SyncObjectReference } from './types.ts';
+import type {
+  SyncEncodedValue,
+  SyncEvent,
+  SyncObjectId,
+  SyncObjectKey,
+  SyncObjectRecord,
+  SyncObjectReference,
+} from './types.ts';
 
 const isObjectReference = (value: SyncEncodedValue): value is SyncObjectReference =>
   Array.isArray(value) && value.length === 1 && typeof value[0] === 'number';
